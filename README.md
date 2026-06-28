@@ -1,9 +1,6 @@
 # Janitor Lorebook Extractor
 
-JAR (Janitor Ai Ripper) — extract public lorebooks and characters from JanitorAI with
-local tooling. For **closed lorebooks**, the tool fires the character's own card text as a
-chat message to trigger as many hidden entries as possible, collects the injected content,
-and sends it to an LLM to reconstruct a ready-to-import SillyTavern World Info JSON.
+JAR (Janitor Ai Ripper) — extract lorebooks and characters from JanitorAI, both open and close, locally on your PC and automated.
 
 ## Setup
 
@@ -46,15 +43,6 @@ Open **⚙ Settings** to configure the extraction LLM — any OpenAI-compatible 
    World Info → Import. Character cards download as PNG or JSON from the *character card*
    tab.
 
-### Public lorebooks
-
-Public lorebooks (attached to the character's profile) are downloaded automatically
-during inspection — no LLM needed. They appear in the *lorebook* tab, each with its own
-download button.
-
-When a character has both public and closed lorebooks, the public entry text is
-automatically subtracted from the captured prompt before extraction, leaving only the
-closed entries.
 
 ## How it works
 
@@ -72,7 +60,11 @@ text reaches the JanitorAI server, where it triggers lorebook entries. The serve
 those entries into the prompt. JAR intercepts the `generateAlpha` response and isolates
 the lorebook entries, discarding everything else.
 
+
 **Public lorebooks and characters** — These are public and are downloaded directly from /hampter/characters endpoint.
+When a character has both public and closed lorebooks, the public entry text is
+automatically subtracted from the captured prompt before extraction, leaving only the
+closed entries.
 
 After extraction you can:
 - Download a **raw lorebook** without keys or rules.
