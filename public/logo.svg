@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <g fill="none" stroke="#6ea8fe" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <!-- lid -->
+    <rect x="135" y="45" width="242" height="65" rx="4" stroke-width="24" />
+    <!-- jar body -->
+    <path d="M 155,110
+             C 155,140 125,170 125,210
+             L 125,410
+             A 45,45 0 0 0 170,455
+             L 342,455
+             A 45,45 0 0 0 387,410
+             L 387,210
+             C 387,170 357,140 357,110" />
+  </g>
+  <!-- crack -->
+  <g fill="none" stroke="#e5645c" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 387,205 L 305,250 L 335,285 L 300,310" />
+    <line x1="265" y1="340" x2="280" y2="325" />
+  </g>
+</svg>

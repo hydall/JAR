@@ -1,0 +1,7 @@
+node_modules/
+captures/
+output/
+user-data/
+.env
+settings.local.json
+*.log

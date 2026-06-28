@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JAR — Janitor AI Ripper</title>
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-unlock" viewBox="0 0 24 24">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24">
+        <rect x="3" y="11" width="18" height="11" rx="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </symbol>
+      <symbol id="i-help" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </symbol>
+      <symbol id="i-extract" viewBox="0 0 24 24">
+        <polyline points="8 17 12 21 16 17"/>
+        <line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </symbol>
+      <symbol id="i-book" viewBox="0 0 24 24">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+      </symbol>
+      <symbol id="i-warn" viewBox="0 0 24 24">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <polyline points="20 6 9 17 4 12"/>
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <header>
+    <div class="brand">
+      <img src="logo.svg" alt="JAR" class="brand-logo" />
+      <h1>JAR <span class="brand-sub">Janitor AI Ripper</span> <span id="appVersion" class="brand-version"></span></h1>
+    </div>
+    <div class="header-actions">
+      <span id="loginStatus" class="muted"></span>
+      <button id="loginBtn" class="ghost"><svg class="icon"><use href="#i-unlock"/></svg><span data-i18n="login">log in</span></button>
+      <button id="howBtn" class="ghost"><svg class="icon"><use href="#i-help"/></svg><span data-i18n="howBtn">how it works</span></button>
+      <button id="settingsBtn" class="ghost"><svg class="icon"><use href="#i-gear"/></svg><span data-i18n="settingsBtn">settings</span></button>
+    </div>
+  </header>
+
+  <main>
+    <aside id="sidebar">
+      <div id="mainContent" class="hidden">
+        <p id="emptyHint" class="hint" data-i18n-html="emptyHint"></p>
+        <div class="auto-bar col">
+          <input id="charUrl" type="text" data-i18n-ph="charUrlPh" placeholder="Paste character URL…" />
+          <div class="auto-row">
+            <button id="runBtn" class="primary small"><svg class="icon"><use href="#i-extract"/></svg><span data-i18n="runBtn">extract</span></button>
+          </div>
+          <span id="autoStatus" class="muted"></span>
+        </div>
+        <div class="sidebar-head">
+          <h2 data-i18n="captures">captures</h2>
+        </div>
+        <ul id="captureList"></ul>
+      </div>
+    </aside>
+
+    <section id="detail" class="hidden">
+      <div id="detailEmpty" class="placeholder" data-i18n="detailEmpty">select a capture on the left.</div>
+
+      <div id="detailBody" class="hidden">
+        <div class="row meta">
+          <img id="metaAvatar" class="meta-avatar hidden" alt="avatar" />
+          <div class="meta-info">
+            <span id="metaChar" class="meta-char"></span>
+            <span id="metaTime" class="muted"></span>
+          </div>
+          <button id="deleteBtn" class="ghost small danger" data-i18n="deleteBtn">delete</button>
+        </div>
+
+        <details class="block hidden" id="rawBlock">
+          <summary data-i18n-html="rawMsgSummary"></summary>
+          <label class="raw-toggle">
+            <input type="checkbox" id="rawJsonToggle" />
+            <span data-i18n="rawJsonToggle">raw JSON (exactly as received from generateAlpha)</span>
+          </label>
+          <div id="rawMessages" class="messages-container"></div>
+          <pre id="rawJson" class="msg-body hidden"></pre>
+        </details>
+
+        <details class="block hidden" id="provBlock">
+          <summary data-i18n="provTitle">extraction breakdown</summary>
+          <div id="provBody" class="prov-body"></div>
+        </details>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="tabCard" data-i18n="tabCard">character card</button>
+          <button class="tab" data-tab="tabLorebook" data-i18n="tabLorebook">lorebook</button>
+        </div>
+
+        <!-- Tab: Character Card -->
+        <div id="tabCard" class="tab-panel active">
+          <div id="cardExtractBar" class="block extract-bar hidden">
+            <p class="hint" data-i18n="cardPrivateHint">this card is private — click Extract to reconstruct it from the prompt.</p>
+            <div class="row">
+              <button id="cardExtractBtn" class="primary"><svg class="icon"><use href="#i-extract"/></svg><span data-i18n="btnExtractCard">extract card</span></button>
+              <span id="cardExtractStatus" class="muted"></span>
+            </div>
+          </div>
+          <div id="cardFormBlock" class="block">
+            <div id="charSource" class="card-source hidden"></div>
+            <div class="char-grid">
+              <div class="char-header">
+                <div class="char-name-wrap full-width">
+                  <label class="muted" data-i18n="lblName">name</label>
+                  <input id="charName" type="text" data-i18n-ph="phCharName" placeholder="Character Name…" />
+                </div>
+              </div>
+              <label class="muted" data-i18n="lblDesc">description / persona</label>
+              <textarea id="charDesc" rows="5" placeholder="Character Persona…"></textarea>
+              <label class="muted" data-i18n="lblPersonality">personality</label>
+              <textarea id="charPersonality" rows="2" placeholder="Personality…"></textarea>
+              <label class="muted" data-i18n="lblScenario">scenario</label>
+              <textarea id="charScenario" rows="2" placeholder="Scenario…"></textarea>
+              <label class="muted" data-i18n="lblFirst">first message</label>
+              <textarea id="charFirst" rows="3" placeholder="First Message…"></textarea>
+              <div id="charAltGreetingsBlock" class="hidden">
+                <label class="muted"><span data-i18n="lblAltGreetings">alternate greetings</span> <span id="charAltCount" class="muted"></span></label>
+                <div id="charAltGreetings"></div>
+              </div>
+              <label class="muted" data-i18n="lblExample">example messages</label>
+              <textarea id="charExample" rows="3" placeholder="Example Dialogue…"></textarea>
+              <label class="muted" data-i18n="lblTags">tags (comma-separated)</label>
+              <input id="charTags" type="text" placeholder="tags…" />
+              <label class="muted" data-i18n="lblNotes">creator notes</label>
+              <textarea id="charNotes" rows="2" placeholder="Creator Notes…"></textarea>
+              <div class="row">
+                <button id="dlPngBtn" class="primary small"><svg class="icon"><use href="#i-download"/></svg>PNG</button>
+                <button id="dlJsonBtn" class="ghost small"><svg class="icon"><use href="#i-download"/></svg>JSON</button>
+                <button id="dlImgBtn" class="ghost small"><svg class="icon"><use href="#i-download"/></svg><span data-i18n="dlImgBtn">image only</span></button>
+                <span id="charStatus" class="muted"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Lorebook -->
+        <div id="tabLorebook" class="tab-panel">
+          <p id="noLorebook" class="hint hidden" data-i18n="noLorebook">this character has no lorebook</p>
+          <div id="publicBlock" class="block hidden">
+            <h3 data-i18n="publicTitle">public lorebooks</h3>
+            <p id="publicHint" class="muted">downloaded whole from JanitorAI — no LLM needed.</p>
+            <div id="publicBooks" class="public-books"></div>
+          </div>
+          <div id="privateBlock" class="block hidden">
+            <h3 data-i18n="privateTitle">private lorebooks</h3>
+            <p id="privateHint" class="muted"></p>
+            <div id="privateBooks" class="public-books"></div>
+          </div>
+
+          <!-- On-demand closed-lorebook extraction (runs generateAlpha) -->
+          <div id="loreExtractBlock" class="block extract-bar hidden">
+            <h3 data-i18n="loreExtractTitle">extract closed lorebook</h3>
+            <p class="hint" data-i18n="loreExtractHint">choose what context is sent to the model to retrieve the lorebook entries.</p>
+            <div class="row context-sources">
+              <label><input type="checkbox" id="exCard" checked /> <span data-i18n="ctxCard">character card</span></label>
+              <label><input type="checkbox" id="exCatalog" checked /> <span data-i18n="ctxCatalog">card description on site</span></label>
+              <label><input type="checkbox" id="exScenario" checked /> <span data-i18n="ctxScenario">scenario</span></label>
+              <label><input type="checkbox" id="exGreetings" /> <span data-i18n="ctxGreetings">first message(s)</span></label>
+              <label><input type="checkbox" id="exLorebookDescs" /> <span data-i18n="ctxLorebookDescs">lorebook descriptions</span></label>
+              <label><input type="checkbox" id="exExtra" /> <span data-i18n="ctxExtra">custom text</span></label>
+            </div>
+            <textarea id="exExtraText" rows="3" class="hidden" data-i18n-ph="phExtra" placeholder="optional custom context…"></textarea>
+            <div class="row">
+              <button id="loreExtractBtn" class="primary"><svg class="icon"><use href="#i-extract"/></svg><span data-i18n="btnExtractLore">extract</span></button>
+              <span id="loreExtractStatus" class="muted"></span>
+            </div>
+          </div>
+
+          <div id="buildBlock" class="block hidden">
+            <div id="lorebookEntries" class="lorebook-entries"></div>
+            <textarea id="lorebookText" class="hidden"></textarea>
+            <div class="row">
+              <button id="dlRawBtn" class="ghost"><svg class="icon"><use href="#i-download"/></svg><span data-i18n="dlRawBtn">download raw (no keys)</span></button>
+            </div>
+            <div class="action-divider"><span data-i18n="actionOr">OR</span></div>
+            <h3 data-i18n="buildTitle">build with LLM</h3>
+            <label class="muted" data-i18n="lblWorldName">world info name (optional)</label>
+            <input id="worldName" type="text" placeholder="Janitor Lorebook" />
+            <label class="muted" data-i18n="lblContext">context sent for key inference (never output as entries)</label>
+            <div class="row context-sources">
+              <label><input type="checkbox" id="useCard" checked /> <span data-i18n="ctxCard">character card</span></label>
+              <label><input type="checkbox" id="useCatalog" checked /> <span data-i18n="ctxCatalog">card description on site</span></label>
+              <label><input type="checkbox" id="useScenario" checked /> <span data-i18n="ctxScenario">scenario</span></label>
+              <label><input type="checkbox" id="useGreetings" /> <span data-i18n="ctxGreetings">first message(s)</span></label>
+              <label><input type="checkbox" id="useLorebookDescs" checked /> <span data-i18n="ctxLorebookDescs">lorebook descriptions</span></label>
+              <label><input type="checkbox" id="useExtra" /> <span data-i18n="ctxExtra">custom text</span></label>
+            </div>
+            <textarea id="extraContext" rows="3" class="hidden" data-i18n-ph="phExtra" placeholder="optional custom context…"></textarea>
+            <div class="row">
+              <button id="buildBtn" class="primary" data-i18n="buildBtn">build lorebook</button>
+              <button id="previewBtn" class="ghost" data-i18n="previewBtn">preview prompt</button>
+              <span id="buildStatus" class="muted"></span>
+              <span id="buildTimer" class="muted build-timer"></span>
+            </div>
+            <details id="promptPreview" class="block hidden">
+              <summary data-i18n="promptPreviewTitle">prompt sent to the build LLM</summary>
+              <pre id="promptPre" class="scroll"></pre>
+            </details>
+            <div id="buildResult" class="hidden">
+              <div class="row">
+                <button id="downloadBtn" class="ghost"><svg class="icon"><use href="#i-download"/></svg>download .json</button>
+              </div>
+              <pre id="worldInfoPre" class="scroll"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="settingsDialog">
+    <form method="dialog">
+      <label data-i18n="lblLanguage">language</label>
+      <select id="setLang">
+        <option value="en">English</option>
+        <option value="ru">Русский</option>
+      </select>
+      <h2 data-i18n="settingsTitle">extraction LLM (OpenAI-compatible)</h2>
+      <label>Base URL</label>
+      <input id="setBaseUrl" type="text" placeholder="https://openrouter.ai/api/v1" />
+      <label>API key</label>
+      <input id="setApiKey" type="password" placeholder="sk-…" />
+      <label>Model</label>
+      <input id="setModel" type="text" placeholder="anthropic/claude-opus-4-8" />
+      <div class="row end">
+        <button value="cancel" class="ghost" data-i18n="cancelBtn">cancel</button>
+        <button id="saveSettings" value="default" class="primary" data-i18n="saveBtn">save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="howDialog">
+    <div class="how-content">
+      <div id="howEN" class="how-body"></div>
+      <div id="howRU" class="how-body hidden"></div>
+
+      <p class="muted" style="margin-top:16px;text-align:right">CGFY.</p>
+
+      <div class="row end" style="margin-top:12px">
+        <button id="howClose" class="primary" value="cancel" data-i18n="gotIt">got it</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="i18n.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
