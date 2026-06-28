@@ -1,6 +1,6 @@
-# Janitor Lorebook Extractor
+# Janitor AI Ripper
 
-JAR (Janitor Ai Ripper) — extract lorebooks and characters from JanitorAI, both open and close, locally on your PC and automated.
+JAR (Janitor AI Ripper) — extract lorebooks and characters from JanitorAI, both open and close, locally on your PC and automated.
 
 ## Setup
 
