@@ -4,7 +4,8 @@
  * Public lorebooks.
  *
  * A JanitorAI character can have **public** lorebooks attached to it (the
- * `scripts` array in the catalog/character metadata, items of `type:"lorebook"`).
+ * `scripts` array in the catalog/character metadata, items of `type:"lorebook"`
+ * or the newer `type:"advanced"`).
  * Unlike a *closed* lorebook — which only ever surfaces as triggered text inside a
  * `generateAlpha` response and must be rebuilt by an LLM — a public lorebook can be
  * downloaded whole, in its original structured form, from:
@@ -32,12 +33,73 @@ const ORIGIN = 'https://janitorai.com';
 function lorebookScriptRefs(meta) {
   if (!meta || !Array.isArray(meta.scripts)) return [];
   return meta.scripts
-    .filter((s) => s && s.type === 'lorebook' && (s.id != null))
+    .filter((s) => s && (s.type === 'lorebook' || s.type === 'advanced') && (s.id != null))
     .map((s) => ({
       id: String(s.id),
       title: s.title || '',
       isPublic: s.is_public !== false,
     }));
+}
+
+/**
+ * The raw JavaScript source of a `/hampter/script/<id>` record when its `script`
+ * field is JS rather than a JSON entries array (a JanitorAI "advanced" / Nine API
+ * lorebook). Returns '' when the script is JSON, empty, or absent.
+ */
+function jsScriptSource(rec) {
+  if (!rec) return '';
+  const raw = rec.script;
+  if (typeof raw !== 'string') return '';
+  const s = raw.trim();
+  if (!s) return '';
+  try {
+    const a = JSON.parse(s);
+    if (Array.isArray(a)) return ''; // structured (non-JS) shape
+  } catch (_) {
+    // Not JSON → treat as JS source.
+  }
+  return s;
+}
+
+/**
+ * The lorebook's human-readable description shown on its public page
+ * (`/scripts/<id>`). JanitorAI does NOT expose this through the `/hampter` API
+ * (its `description` there is usually empty) — it lives in the page's embedded
+ * store as `scriptPublishedContent.content` (with `script.description` as a
+ * fallback). The page embeds the store as escaped JSON inside a
+ * `window.mbxM.push(JSON.parse("…"))` call, so it is double-decoded here.
+ * Returns '' when the page is closed/unavailable or carries no content.
+ */
+function parsePublishedContent(html) {
+  const re = /JSON\.parse\("((?:[^"\\]|\\.)*)"\)/g;
+  let m;
+  // eslint-disable-next-line no-cond-assign
+  while ((m = re.exec(html))) {
+    let obj;
+    try { obj = JSON.parse(JSON.parse(`"${m[1]}"`)); } catch (_) { continue; }
+    if (!obj || typeof obj !== 'object') continue;
+    for (const v of Object.values(obj)) {
+      const c = v && v.scriptPublishedContent && v.scriptPublishedContent.content;
+      if (typeof c === 'string' && c.trim()) return c;
+      const d = v && v.script && v.script.description;
+      if (typeof d === 'string' && d.trim()) return d;
+    }
+  }
+  return '';
+}
+
+/**
+ * Fetch the lorebook's public page and pull out its description content. Never
+ * throws — returns '' when the page can't be read (e.g. a closed page).
+ */
+async function fetchScriptDescription(page, scriptId) {
+  try {
+    const res = await authedFetch(page, `${ORIGIN}/scripts/${scriptId}`);
+    if (!res || res.status >= 400) return '';
+    return parsePublishedContent(res.body || '');
+  } catch (_) {
+    return '';
+  }
 }
 
 /** Parse the entries array out of a `/hampter/script/<id>` record. */
@@ -82,12 +144,27 @@ async function fetchPublicLorebook(page, scriptId, ref = {}) {
   const entries = parseScriptEntries(rec);
   const worldInfo = buildWorldInfo(entries);
   const entryCount = Object.keys(worldInfo.entries).length;
-  return {
+  // A JanitorAI "advanced" / Nine API lorebook ships its `script` as JavaScript
+  // source, not a JSON entries array — so it yields no entries even though the
+  // script IS public. Surface it as a JS book (rebuilt via the LLM with
+  // `fromJs`) instead of letting it fall through as a private/closed lorebook.
+  const scriptSource = entryCount === 0 ? jsScriptSource(rec) : '';
+  // The real description lives on the lorebook's public /scripts page, not in
+  // the /hampter record (whose `description` is usually empty). A closed page
+  // falls back to the (often empty) hampter description.
+  const pageDesc = await fetchScriptDescription(page, scriptId);
+  const common = {
     id: String(rec.id || scriptId),
     title: rec.title || ref.title || '',
-    description: rec.description || '',
+    description: pageDesc || rec.description || '',
     isPublic: rec.is_public === true,
     isCodePublic: rec.is_code_public === true,
+  };
+  if (scriptSource) {
+    return { ...common, isJs: true, scriptSource, accessible: false, entryCount: 0, worldInfo };
+  }
+  return {
+    ...common,
     // Downloadable only if the code is public AND it actually yielded entries.
     accessible: entryCount > 0,
     entryCount,
@@ -129,6 +206,7 @@ function publicEntryContents(publicLorebooks) {
 
 module.exports = {
   lorebookScriptRefs,
+  jsScriptSource,
   parseScriptEntries,
   fetchPublicLorebook,
   fetchPublicLorebooks,

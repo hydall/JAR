@@ -275,10 +275,33 @@ dialog h2 { margin-top: 0; font-size: 15px; }
 .meta-char a { color: var(--accent); text-decoration: none; }
 .meta-char a:hover { text-decoration: underline; }
 
-/* key-inference context source toggles */
-.context-sources { gap: 16px; }
-.context-sources label {
+/* key-inference context source blocks (collapsible — reveal what gets sent) */
+.context-sources { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 2px; }
+.ctx-block { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+.ctx-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 10px; cursor: pointer;
+}
+.ctx-head label {
   display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer;
   font-size: 13px; color: var(--text);
 }
 .context-sources input[type=checkbox] { width: auto; }
+.ctx-meta { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+.ctx-caret { display: inline-block; font-size: 10px; transition: transform .15s ease; }
+.ctx-block.open .ctx-caret { transform: rotate(90deg); }
+/* a source with no content: greyed out, not selectable, not expandable */
+.ctx-block.empty .ctx-head { cursor: default; }
+.ctx-block.empty .ctx-head label { opacity: .5; cursor: not-allowed; }
+.ctx-block.empty .ctx-caret { display: none; }
+.ctx-content { margin: 0 10px 10px; max-height: 220px; }
+.ctx-content.empty { color: var(--muted); font-style: italic; }
+.ctx-block textarea {
+  margin: 0; border-top-left-radius: 0; border-top-right-radius: 0;
+  border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
+}
+/* public-lorebook description shown inline under its title */
+.public-book .pb-desc {
+  font-size: 12px; color: var(--muted); white-space: pre-wrap; word-break: break-word;
+  display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
+}

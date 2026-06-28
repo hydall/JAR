@@ -184,15 +184,49 @@
           <div id="loreExtractBlock" class="block extract-bar hidden">
             <h3 data-i18n="loreExtractTitle">extract closed lorebook</h3>
             <p class="hint" data-i18n="loreExtractHint">choose what context is sent to the model to retrieve the lorebook entries.</p>
-            <div class="row context-sources">
-              <label><input type="checkbox" id="exCard" checked /> <span data-i18n="ctxCard">character card</span></label>
-              <label><input type="checkbox" id="exCatalog" checked /> <span data-i18n="ctxCatalog">card description on site</span></label>
-              <label><input type="checkbox" id="exScenario" checked /> <span data-i18n="ctxScenario">scenario</span></label>
-              <label><input type="checkbox" id="exGreetings" /> <span data-i18n="ctxGreetings">first message(s)</span></label>
-              <label><input type="checkbox" id="exLorebookDescs" /> <span data-i18n="ctxLorebookDescs">lorebook descriptions</span></label>
-              <label><input type="checkbox" id="exExtra" /> <span data-i18n="ctxExtra">custom text</span></label>
+            <div class="context-sources" id="exSources">
+              <div class="ctx-block" data-ctx="card">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="exCard" checked /> <span data-i18n="ctxCard">character card</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="catalog">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="exCatalog" checked /> <span data-i18n="ctxCatalog">card description on site</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="scenario">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="exScenario" checked /> <span data-i18n="ctxScenario">scenario</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="greetings">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="exGreetings" /> <span data-i18n="ctxGreetings">first message(s)</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="lorebookDescs">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="exLorebookDescs" /> <span data-i18n="ctxLorebookDescs">lorebook descriptions</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="extra">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="exExtra" /> <span data-i18n="ctxExtra">custom text</span></label>
+                </div>
+                <textarea id="exExtraText" rows="3" class="hidden" data-i18n-ph="phExtra" placeholder="optional custom context…"></textarea>
+              </div>
             </div>
-            <textarea id="exExtraText" rows="3" class="hidden" data-i18n-ph="phExtra" placeholder="optional custom context…"></textarea>
             <div class="row">
               <button id="loreExtractBtn" class="primary"><svg class="icon"><use href="#i-extract"/></svg><span data-i18n="btnExtractLore">extract</span></button>
               <span id="loreExtractStatus" class="muted"></span>
@@ -210,15 +244,49 @@
             <label class="muted" data-i18n="lblWorldName">world info name (optional)</label>
             <input id="worldName" type="text" placeholder="Janitor Lorebook" />
             <label class="muted" data-i18n="lblContext">context sent for key inference (never output as entries)</label>
-            <div class="row context-sources">
-              <label><input type="checkbox" id="useCard" checked /> <span data-i18n="ctxCard">character card</span></label>
-              <label><input type="checkbox" id="useCatalog" checked /> <span data-i18n="ctxCatalog">card description on site</span></label>
-              <label><input type="checkbox" id="useScenario" checked /> <span data-i18n="ctxScenario">scenario</span></label>
-              <label><input type="checkbox" id="useGreetings" /> <span data-i18n="ctxGreetings">first message(s)</span></label>
-              <label><input type="checkbox" id="useLorebookDescs" checked /> <span data-i18n="ctxLorebookDescs">lorebook descriptions</span></label>
-              <label><input type="checkbox" id="useExtra" /> <span data-i18n="ctxExtra">custom text</span></label>
+            <div class="context-sources" id="useSources">
+              <div class="ctx-block" data-ctx="card">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="useCard" checked /> <span data-i18n="ctxCard">character card</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="catalog">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="useCatalog" checked /> <span data-i18n="ctxCatalog">card description on site</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="scenario">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="useScenario" checked /> <span data-i18n="ctxScenario">scenario</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="greetings">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="useGreetings" /> <span data-i18n="ctxGreetings">first message(s)</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="lorebookDescs">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="useLorebookDescs" checked /> <span data-i18n="ctxLorebookDescs">lorebook descriptions</span></label>
+                  <span class="ctx-meta"><span class="ctx-len"></span><span class="ctx-caret">▸</span></span>
+                </div>
+                <pre class="ctx-content scroll small hidden"></pre>
+              </div>
+              <div class="ctx-block" data-ctx="extra">
+                <div class="ctx-head">
+                  <label><input type="checkbox" id="useExtra" /> <span data-i18n="ctxExtra">custom text</span></label>
+                </div>
+                <textarea id="extraContext" rows="3" class="hidden" data-i18n-ph="phExtra" placeholder="optional custom context…"></textarea>
+              </div>
             </div>
-            <textarea id="extraContext" rows="3" class="hidden" data-i18n-ph="phExtra" placeholder="optional custom context…"></textarea>
             <div class="row">
               <button id="buildBtn" class="primary" data-i18n="buildBtn">build lorebook</button>
               <button id="previewBtn" class="ghost" data-i18n="previewBtn">preview prompt</button>

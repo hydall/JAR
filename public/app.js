@@ -15,6 +15,35 @@ async function api(path, opts) {
   return res.json();
 }
 
+// Token counts (o200k_base) come from the server tokenizer — the same encoding
+// GlazeFlutter uses. Cached per text; falls back to ~4 chars/token on failure.
+const _tokCache = new Map();
+
+// Count many texts in ONE round-trip, requesting only the not-yet-cached ones.
+// Returns counts aligned to `texts`.
+async function countTokensBatch(texts) {
+  const list = texts.map((x) => String(x || ''));
+  const missing = [...new Set(list.filter((x) => x && !_tokCache.has(x)))];
+  if (missing.length) {
+    try {
+      const r = await api('/api/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts: missing }),
+      });
+      const counts = r.counts || [];
+      missing.forEach((x, i) => _tokCache.set(x, counts[i] | 0));
+    } catch (_) {
+      missing.forEach((x) => _tokCache.set(x, Math.ceil(x.length / 4)));
+    }
+  }
+  return list.map((x) => (x ? (_tokCache.get(x) ?? Math.ceil(x.length / 4)) : 0));
+}
+
+async function countTokens(text) {
+  return (await countTokensBatch([text]))[0];
+}
+
 function fmtTime(ts) {
   const d = new Date(ts);
   return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -44,6 +73,91 @@ async function loadList() {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// Strip HTML tags to plain text (lorebook/catalog descriptions can carry markup).
+function stripHtml(s) {
+  return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// ---- context-source blocks (key-inference context, shown inline) ----
+// The per-source text the build LLM will receive, derived from the selected
+// record. Each is independently toggled AND now revealed in its own block so the
+// user sees exactly what gets sent (the card prompt, catalog/scenario/greetings,
+// the public lorebook descriptions). Card text is only recovered by the
+// extraction itself, so it may be empty until then.
+function contextPartsFromRec(rec) {
+  const ctx = (rec && rec.context) || {};
+  const ch = (rec && rec.character) || {};
+  return {
+    card: String(ch.description || '').trim(),
+    catalog: String(ctx.description || '').trim(),
+    scenario: String(ctx.scenario || '').trim(),
+    greetings: String(ctx.greetings || '').trim(),
+    lorebookDescs: String(ctx.lorebooks || '').trim(),
+  };
+}
+
+// Fill the content panes of every context block under `rootId` (`exSources` /
+// `useSources`). A source with no content is shown disabled with a
+// "Content is empty" hint and can't be selected or expanded. The character card
+// is the exception — it's recovered during extraction, so it stays selectable
+// and shows a placeholder until then.
+function fillContextBlocks(rootId, parts) {
+  const root = $(rootId);
+  if (!root) return;
+  const pending = []; // { len, content } — token counts filled in one batch below
+  root.querySelectorAll('.ctx-block[data-ctx]').forEach((block) => {
+    const key = block.dataset.ctx;
+    if (key === 'extra') return; // editable custom text — handled by its checkbox
+    const content = (parts && parts[key]) || '';
+    const isCard = key === 'card';
+    const disabled = !content && !isCard;
+    const pre = block.querySelector('.ctx-content');
+    const len = block.querySelector('.ctx-len');
+    const cb = block.querySelector('input[type=checkbox]');
+
+    block.classList.toggle('empty', disabled);
+    if (cb) {
+      cb.disabled = disabled;
+      if (disabled) cb.checked = false;
+    }
+    if (len) {
+      if (content) {
+        len.textContent = '…';
+        pending.push({ len, content });
+      } else {
+        len.textContent = (isCard ? '' : t('ctxContentEmpty'));
+      }
+    }
+    if (pre) {
+      pre.textContent = content || (isCard ? t('ctxCardPending') : '');
+      if (disabled) { pre.classList.add('hidden'); block.classList.remove('open'); }
+    }
+  });
+  if (pending.length) {
+    countTokensBatch(pending.map((p) => p.content)).then((counts) => {
+      pending.forEach((p, i) => { p.len.textContent = `${counts[i]} ${t('provTokens')}`; });
+    });
+  }
+}
+
+// One-time wiring: clicking a block header (but not its checkbox/label) expands
+// or collapses that source's content pane.
+function wireContextExpand(rootId) {
+  const root = $(rootId);
+  if (!root) return;
+  root.addEventListener('click', (e) => {
+    if (e.target.closest('label')) return; // checkbox/label → toggle inclusion only
+    const head = e.target.closest('.ctx-head');
+    if (!head) return;
+    const block = head.closest('.ctx-block');
+    if (!block || block.classList.contains('empty')) return; // nothing to reveal
+    const pre = block.querySelector('.ctx-content');
+    if (!pre) return; // e.g. the custom-text block has no content pane
+    const nowHidden = pre.classList.toggle('hidden');
+    block.classList.toggle('open', !nowHidden);
+  });
 }
 
 // ---- inline SVG icons (sprite defined in index.html) ----
@@ -94,6 +208,11 @@ async function selectCapture(id) {
   const rec = await api(`/api/captures/${id}`);
   $('detailEmpty').classList.add('hidden');
   $('detailBody').classList.remove('hidden');
+
+  // Reveal what each context source will send (both the extract and build sets).
+  state.contextParts = contextPartsFromRec(rec);
+  fillContextBlocks('exSources', state.contextParts);
+  fillContextBlocks('useSources', state.contextParts);
 
   const charEl = $('metaChar');
   if (rec.characterId) {
@@ -185,29 +304,35 @@ const RM_KEY = {
   publicLorebook: 'rmPublicLorebook',
 };
 
-function renderProvenance(rec, sep) {
+async function renderProvenance(rec, sep) {
   const removed = sep.removed || [];
   const entries = sep.entries || [];
-  const kept = (sep.lorebookText || '').length;
+
+  // One batch for the lorebook text + every removed fragment.
+  const counts = await countTokensBatch([
+    sep.lorebookText || '',
+    ...removed.map((r) => r.text || ''),
+  ]);
+  const kept = counts[0];
 
   const parts = [];
 
   if (entries.length) {
     parts.push('<details class="prov-item">'
-      + `<summary>${t('provLorebookLbl')} <span class="muted">(${entries.length} ${t('provEntries')} · ${kept} ${t('provChars')})</span></summary>`
+      + `<summary>${t('provLorebookLbl')} <span class="muted">(${entries.length} ${t('provEntries')} · ${kept} ${t('provTokens')})</span></summary>`
       + `<pre class="msg-body">${escapeHtml(sep.lorebookText || '')}</pre></details>`);
   }
 
   if (!removed.length && !entries.length) {
     parts.push(`<div class="prov-warn">${iconSvg('warn')} ${t('provNothing')}</div>`);
   }
-  for (const r of removed) {
+  removed.forEach((r, i) => {
     const label = t(RM_KEY[r.label] || r.label);
-    const len = (r.text || '').length;
+    const len = counts[i + 1];
     parts.push('<details class="prov-item">'
-      + `<summary>${escapeHtml(label)} <span class="muted">(${len} ${t('provChars')})</span></summary>`
+      + `<summary>${escapeHtml(label)} <span class="muted">(${len} ${t('provTokens')})</span></summary>`
       + `<pre class="msg-body">${escapeHtml(r.text || '')}</pre></details>`);
-  }
+  });
   $('provBody').innerHTML = parts.join('');
 }
 
@@ -216,17 +341,25 @@ function renderProvenance(rec, sep) {
 // (a downloadable PUBLIC lorebook) or not (a CLOSED lorebook, rebuilt via the LLM).
 function renderPublicBooks(books) {
   state.publicBooks = Array.isArray(books) ? books : [];
-  
-  // Public lorebooks
+
+  // A public lorebook page may carry a description — show it under the title.
+  const descHtml = (b) => {
+    const d = stripHtml(b && b.description);
+    return d ? `<span class="pb-desc">${escapeHtml(d)}</span>` : '';
+  };
+
+  // Public lorebooks — downloadable JSON books, plus "advanced" JS books that
+  // are public but must be rebuilt into entries with the LLM (fromJs).
   const pubBlock = $('publicBlock');
   const pubContainer = $('publicBooks');
   pubContainer.innerHTML = '';
-  const open = state.publicBooks.filter((b) => b.accessible);
-  if (!open.length) {
+  const open = state.publicBooks.filter((b) => b.accessible && !b.isJs);
+  const jsBooks = state.publicBooks.filter((b) => b.isJs);
+  if (!open.length && !jsBooks.length) {
     pubBlock.classList.add('hidden');
   } else {
     pubBlock.classList.remove('hidden');
-    const closedCount = state.publicBooks.filter((b) => !b.accessible).length;
+    const closedCount = state.publicBooks.filter((b) => !b.accessible && !b.isJs).length;
     $('publicHint').textContent = closedCount > 0 ? t('publicHint') : t('publicHintOnly');
     open.forEach((b) => {
       const i = state.publicBooks.indexOf(b);
@@ -234,11 +367,25 @@ function renderPublicBooks(books) {
       row.className = 'public-book';
       const title = escapeHtml(b.title || t('publicUntitled'));
       row.innerHTML = `<div class="pb-meta"><span class="pb-title">${iconSvg('book')} ${title}</span>`
-        + `<span class="muted">${b.entryCount} ${t('provEntries')}</span></div>`;
+        + `<span class="muted">${b.entryCount} ${t('provEntries')}</span>${descHtml(b)}</div>`;
       const btn = document.createElement('button');
       btn.className = 'ghost small';
       btn.innerHTML = `${iconSvg('download')} .json`;
       btn.addEventListener('click', () => downloadPublicBook(i));
+      row.appendChild(btn);
+      pubContainer.appendChild(row);
+    });
+    jsBooks.forEach((b) => {
+      const i = state.publicBooks.indexOf(b);
+      const row = document.createElement('div');
+      row.className = 'public-book';
+      const title = escapeHtml(b.title || t('publicUntitled'));
+      row.innerHTML = `<div class="pb-meta"><span class="pb-title">${iconSvg('book')} ${title}</span>`
+        + `<span class="muted">JS</span>${descHtml(b)}</div>`;
+      const btn = document.createElement('button');
+      btn.className = 'ghost small';
+      btn.innerHTML = `${iconSvg('download')} Build .json`;
+      btn.addEventListener('click', () => buildJsBook(i, btn));
       row.appendChild(btn);
       pubContainer.appendChild(row);
     });
@@ -248,7 +395,7 @@ function renderPublicBooks(books) {
   const privBlock = $('privateBlock');
   const privContainer = $('privateBooks');
   privContainer.innerHTML = '';
-  const closed = state.publicBooks.filter((b) => !b.accessible);
+  const closed = state.publicBooks.filter((b) => !b.accessible && !b.isJs);
   if (!closed.length) {
     privBlock.classList.add('hidden');
   } else {
@@ -259,7 +406,7 @@ function renderPublicBooks(books) {
       row.className = 'public-book';
       const title = escapeHtml(b.title || t('publicUntitled'));
       row.innerHTML = `<div class="pb-meta"><span class="pb-title">${iconSvg('lock')} ${title}</span>`
-        + `<span class="muted">${t('private')}</span></div>`;
+        + `<span class="muted">${t('private')}</span>${descHtml(b)}</div>`;
       privContainer.appendChild(row);
     });
   }
@@ -270,6 +417,39 @@ function downloadPublicBook(i) {
   if (!b || !b.worldInfo) return;
   const blob = new Blob([JSON.stringify(b.worldInfo, null, 2)], { type: 'application/json' });
   triggerDownload(blob, `${safeName(b.title || 'Public Lorebook')}.json`);
+}
+
+// Rebuild a public "advanced" JS lorebook into a SillyTavern World Info via the
+// build LLM (fromJs), then download the resulting .json. Reuses the same
+// /api/extract pipeline and per-source context as the closed-lorebook build.
+async function buildJsBook(i, btn) {
+  const b = state.publicBooks[i];
+  if (!b || !b.scriptSource) return;
+  const cfg = await api('/api/settings').catch(() => null);
+  if (!cfg || !cfg.baseUrl || !cfg.model) {
+    openSettings();
+    return;
+  }
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = t('building');
+  try {
+    const body = { ...buildExtractBody(), lorebookText: b.scriptSource, fromJs: true };
+    const r = await api('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const blob = new Blob([JSON.stringify(r.worldInfo, null, 2)], { type: 'application/json' });
+    triggerDownload(blob, `${safeName(b.title || 'Lorebook')}.json`);
+    btn.innerHTML = orig;
+  } catch (e) {
+    btn.textContent = t('buildFailed');
+    console.error('[buildJsBook]', e);
+    setTimeout(() => { btn.innerHTML = orig; }, 2500);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function renderLorebookEntries(entries) {
@@ -833,6 +1013,8 @@ $('useExtra').addEventListener('change', () => {
 $('exExtra').addEventListener('change', () => {
   $('exExtraText').classList.toggle('hidden', !$('exExtra').checked);
 });
+wireContextExpand('exSources');
+wireContextExpand('useSources');
 $('rawJsonToggle').addEventListener('change', () => {
   const raw = $('rawJsonToggle').checked;
   $('rawJson').classList.toggle('hidden', !raw);

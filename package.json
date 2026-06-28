@@ -1,6 +1,6 @@
 {
   "name": "JAR",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Scrap content hosted on JanitorAI",
   "license": "AGPL-3.0",
@@ -14,6 +14,7 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "gpt-tokenizer": "^3.4.0",
     "playwright": "^1.47.0"
   }
 }

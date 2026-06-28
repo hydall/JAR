@@ -20,6 +20,7 @@ const {
 const { fetchPublicLorebooks, publicEntryContents } = require('./publiclore');
 const { enterExtractionMode, restoreProfile } = require('./profile');
 const { ensureUserMacroPersona, deletePersona } = require('./personas');
+const { countTokens } = require('./tokenizer');
 
 const PORT = Number(process.env.PORT) || 4577;
 const SETTINGS_FILE = path.join(__dirname, '..', 'settings.local.json');
@@ -159,6 +160,16 @@ app.get('/api/version', (_req, res) => {
   res.json({ version: pkg.version });
 });
 
+// Token counting (o200k_base, same tokenizer as GlazeFlutter). Accepts either a
+// single `{ text }` → `{ n }`, or a batch `{ texts: [...] }` → `{ counts: [...] }`.
+app.post('/api/tokens', (req, res) => {
+  const { text, texts } = req.body || {};
+  if (Array.isArray(texts)) {
+    return res.json({ counts: texts.map((t) => countTokens(t)) });
+  }
+  res.json({ n: countTokens(text) });
+});
+
 app.get('/api/captures', (req, res) => res.json(store.list()));
 
 app.get('/api/captures/:id', (req, res) => {
@@ -217,6 +228,9 @@ function resolveExtractInputs(req) {
     greetings: useGreetings ? (ctx.greetings || '') : '',
     lorebookDescs: useLorebookDescs ? (ctx.lorebooks || '') : '',
     extra: String(req.body.extraContext || '').trim(),
+    // When the raw text is a JanitorAI "advanced" / Nine API lorebook (JS source
+    // rather than concatenated entry bodies), select the JS-aware build prompt.
+    fromJs: req.body.fromJs === true,
   };
   return { lorebookText, opts };
 }
@@ -281,7 +295,7 @@ function buildContextParts(meta) {
     // Only items whose description is publicly exposed in the catalog metadata —
     // never the lorebook script/contents themselves.
     const books = meta.scripts
-      .filter((s) => s && s.type === 'lorebook')
+      .filter((s) => s && (s.type === 'lorebook' || s.type === 'advanced'))
       .map((s) => {
         const title = String(s.title || '').trim();
         const d = htmlToText(s.description);
@@ -298,6 +312,27 @@ function buildContextParts(meta) {
     greetings: greetings.join('\n\n---\n\n'),
     lorebooks,
   };
+}
+
+/**
+ * Build the "lorebook descriptions" context from fetched public lorebooks: each
+ * book's page title plus its page description (`- Title: description`). A closed
+ * or description-less page contributes only its title (`- Title`). The lorebook
+ * *contents* are never included — only the public page description.
+ *
+ * JanitorAI exposes only lorebook titles in the character metadata; the
+ * descriptions live on each lorebook's own /hampter/script/<id> page, so they
+ * come from the {@link module:publiclore.fetchPublicLorebooks} records.
+ */
+function lorebookDescsFromBooks(books) {
+  const lines = [];
+  for (const b of books || []) {
+    const title = String((b && b.title) || '').trim();
+    const desc = htmlToText(b && b.description);
+    if (!title && !desc) continue;
+    lines.push(desc ? `- ${title}: ${desc}` : `- ${title}`);
+  }
+  return lines.join('\n');
 }
 
 /** Flatten context parts into a single string (legacy combined `catalog` field). */
@@ -427,6 +462,12 @@ app.post('/api/inspect', async (req, res) => {
         publicLorebooks = await fetchPublicLorebooks(page, meta);
         const ok = publicLorebooks.filter((b) => b.accessible).length;
         console.log(`[publiclore] ${publicLorebooks.length} attached, ${ok} downloadable`);
+        // The character metadata only carries lorebook titles — replace the
+        // titles-only context with the real page descriptions now that the
+        // lorebook pages have been fetched.
+        if (publicLorebooks.length) {
+          ctxParts.lorebooks = lorebookDescsFromBooks(publicLorebooks);
+        }
       } catch (e) {
         console.warn('[publiclore] fetch failed:', e.message);
       }

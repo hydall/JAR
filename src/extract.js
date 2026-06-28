@@ -25,6 +25,35 @@ Your job:
    { "entries": [ { "comment": "...", "key": ["..."], "keysecondary": [], "content": "...", "order": 100 }, ... ] }
 No markdown, no prose, no code fences — JSON only.`;
 
+// System prompt for the JS-source path: a JanitorAI "advanced" / Nine API
+// lorebook is shipped as JavaScript (e.g. `const loreEntries = [ ... ]`) rather
+// than a JSON entries array, so the model recovers the entries from the source.
+const SYSTEM_PROMPT_JS = `You reconstruct a SillyTavern World Info (lorebook) from JavaScript source.
+
+You are given the JavaScript source of a JanitorAI "advanced" / Nine API lorebook script. It
+typically defines an array of lore entries (often \`const loreEntries = [ ... ]\`), where each
+entry is an object with fields such as \`keywords\`/\`keys\`/\`keysRaw\`, \`content\`, \`personality\`,
+\`scenario\`, \`name\`/\`title\`/\`category\`, \`constant\`, \`priority\`/\`insertion_order\`, and an
+optional \`filters.notWith\` (secondary "not with" keywords). Some scripts assemble entries with
+code; recover the resulting lore regardless.
+
+You may also be given the character card and a catalog/world description as CONTEXT — use those
+ONLY to infer better keys, never output them as entries.
+
+Your job:
+1. Recover every distinct lore entry the script defines. Do NOT invent entries the script does
+   not contain; do NOT merge unrelated entries or split a single entry.
+2. For each entry, write:
+   - "content": the entry body. If an entry has no \`content\` but has \`personality\` and/or
+     \`scenario\`, combine those into the content.
+   - "key": an array of primary trigger keywords (from \`keywords\`/\`keys\`/\`keysRaw\`).
+   - "keysecondary": secondary keywords (e.g. from \`filters.notWith\`), else [].
+   - "comment": a short title (from \`name\`/\`title\`/\`category\`).
+   - "order": optional integer insertion order (from \`priority\`/\`insertion_order\`); default 100.
+3. Output ONLY a JSON object of the form:
+   { "entries": [ { "comment": "...", "key": ["..."], "keysecondary": [], "content": "...", "order": 100 }, ... ] }
+No markdown, no prose, no code fences — JSON only.`;
+
 function stripFences(text) {
   let t = text.trim();
   const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -106,9 +135,11 @@ function buildExtractionMessages(lorebookText, opts = {}) {
       + 'this as entries:\n\n' + extra,
     );
   }
-  userParts.push(`Raw lorebook text to convert into entries:\n\n${lorebookText}`);
+  userParts.push(opts.fromJs
+    ? `JavaScript lorebook source to convert into entries:\n\n${lorebookText}`
+    : `Raw lorebook text to convert into entries:\n\n${lorebookText}`);
   return [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: opts.fromJs ? SYSTEM_PROMPT_JS : SYSTEM_PROMPT },
     { role: 'user', content: userParts.join('\n\n---\n\n') },
   ];
 }
