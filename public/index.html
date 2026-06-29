@@ -169,6 +169,7 @@
         <!-- Tab: Lorebook -->
         <div id="tabLorebook" class="tab-panel">
           <p id="noLorebook" class="hint hidden" data-i18n="noLorebook">this character has no lorebook</p>
+          <p id="advancedNotice" class="hint warn hidden" data-i18n="advancedNotice"></p>
           <div id="publicBlock" class="block hidden">
             <h3 data-i18n="publicTitle">public lorebooks</h3>
             <p id="publicHint" class="muted">downloaded whole from JanitorAI — no LLM needed.</p>
@@ -236,10 +237,10 @@
           <div id="buildBlock" class="block hidden">
             <div id="lorebookEntries" class="lorebook-entries"></div>
             <textarea id="lorebookText" class="hidden"></textarea>
-            <div class="row">
-              <button id="dlRawBtn" class="ghost"><svg class="icon"><use href="#i-download"/></svg><span data-i18n="dlRawBtn">download raw (no keys)</span></button>
+            <div class="row" id="dlExtractedRow">
+              <button id="dlExtractedBtn" class="ghost"><svg class="icon"><use href="#i-download"/></svg><span data-i18n="dlExtractedBtn">download extracted content as txt</span></button>
             </div>
-            <div class="action-divider"><span data-i18n="actionOr">OR</span></div>
+            <div class="action-divider" id="extractedDivider"><span data-i18n="actionOr">OR</span></div>
             <h3 data-i18n="buildTitle">build with LLM</h3>
             <label class="muted" data-i18n="lblWorldName">world info name (optional)</label>
             <input id="worldName" type="text" placeholder="Janitor Lorebook" />

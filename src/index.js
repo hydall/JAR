@@ -8,7 +8,8 @@ const express = require('express');
 
 const store = require('./captureStore');
 const {
-  separate, extractCard, extractCharName, extractScenario, extractExample, extractFirstMessage,
+  separate, getSystemContent,
+  extractCard, extractCharName, extractScenario, extractExample, extractFirstMessage,
 } = require('./separate');
 const { extract, buildExtractionMessages } = require('./extract');
 const {
@@ -197,13 +198,21 @@ app.post('/api/separate', (req, res) => {
  */
 function resolveExtractInputs(req) {
   const rec = req.body.id ? store.get(req.body.id) : null;
+  // "advanced" / Nine API lorebooks inject entries the heuristic separator cannot
+  // reliably isolate, so the model is handed the FULL assembled system prompt (plus
+  // the clean card/scenario as context) and isolates the lore itself.
+  const fromRaw = req.body.fromRaw === true;
   let lorebookText = req.body.lorebookText;
   if (!lorebookText) {
     if (!rec || !rec.payload) {
       throw Object.assign(new Error('not found'), { status: 404 });
     }
-    const publicContents = publicEntryContents(rec.publicLorebooks);
-    lorebookText = separate(rec.payload, req.body.knownCard || '', publicContents).lorebookText;
+    if (fromRaw) {
+      lorebookText = getSystemContent(rec.payload);
+    } else {
+      const publicContents = publicEntryContents(rec.publicLorebooks);
+      lorebookText = separate(rec.payload, req.body.knownCard || '', publicContents).lorebookText;
+    }
   }
   // Context sources for key inference — each independently selectable from the
   // UI. Custom text is an extra opt-in source. First message(s) default OFF
@@ -231,6 +240,9 @@ function resolveExtractInputs(req) {
     // When the raw text is a JanitorAI "advanced" / Nine API lorebook (JS source
     // rather than concatenated entry bodies), select the JS-aware build prompt.
     fromJs: req.body.fromJs === true,
+    // When the source is the full, un-separated generateAlpha system prompt (the
+    // "advanced" lorebook path), select the isolate-then-build prompt.
+    fromRaw,
   };
   return { lorebookText, opts };
 }

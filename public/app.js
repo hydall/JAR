@@ -2,8 +2,17 @@
 
 const $ = (id) => document.getElementById(id);
 const state = {
-  selected: null, worldInfo: null, character: null, publicBooks: [],
+  selected: null, worldInfo: null, character: null, publicBooks: [], hasAdvanced: false,
 };
+
+// A character has an "advanced" (Nine API) lorebook when any attached script is of
+// type "advanced". Those inject entries the heuristic separator can't isolate, so
+// the whole closed-lorebook extraction must go through the LLM (see selectCapture /
+// buildExtractBody / runLoreExtract).
+function recHasAdvanced(rec) {
+  const scripts = rec && rec.meta && rec.meta.scripts;
+  return Array.isArray(scripts) && scripts.some((s) => s && s.type === 'advanced');
+}
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -196,6 +205,10 @@ function renderMessages(msgs) {
 
 // ---- detail ----
 async function selectCapture(id) {
+  // Only a genuinely new selection should jump to the card tab. Reloads after an
+  // in-place action (extract / build) keep whatever tab the user is on — pressing
+  // a lorebook-tab button must not yank them back to the card.
+  const isNewSelection = state.selected !== id;
   state.selected = id;
   state.worldInfo = null;
   document.querySelectorAll('#captureList li').forEach((li) =>
@@ -228,6 +241,7 @@ async function selectCapture(id) {
   const captured = !!rec.payload;
   state.captured = captured;
   state.cardPublic = !!rec.cardPublic;
+  state.hasAdvanced = recHasAdvanced(rec);
 
   const msgs = (rec.payload && rec.payload.messages) || [];
   $('msgCount').textContent = msgs.length;
@@ -238,7 +252,7 @@ async function selectCapture(id) {
   $('rawBlock').classList.toggle('hidden', !captured);
   $('provBlock').classList.toggle('hidden', !captured);
 
-  fillCharacter(rec.character || null);
+  fillCharacter(rec.character || null, isNewSelection);
 
   // Card tab: a private, not-yet-captured card gets an "extract" button.
   $('cardExtractBar').classList.toggle('hidden', captured || state.cardPublic);
@@ -257,7 +271,14 @@ async function selectCapture(id) {
   renderPublicBooks(rec.publicLorebooks || []);
 
   // auto-run separation only when there's a captured payload to separate.
-  if (captured) {
+  if (captured && state.hasAdvanced) {
+    // "advanced" lorebook: the heuristic separator is unreliable, so the LLM does
+    // the isolation. Feed it the full assembled system prompt (with the clean
+    // card/scenario carried as context). The textarea holds that raw source.
+    const sys = (msgs.find((m) => m && m.role === 'system') || {}).content || '';
+    $('lorebookText').value = sys;
+    renderExtractedContent('');
+  } else if (captured) {
     try {
       const r = await api('/api/separate', {
         method: 'POST',
@@ -265,7 +286,7 @@ async function selectCapture(id) {
         body: JSON.stringify({ id: state.selected, knownCard: '' }),
       });
       $('lorebookText').value = r.lorebookText;
-      renderLorebookEntries(r.entries || []);
+      renderExtractedContent(r.lorebookText || '');
       renderProvenance(rec, r);
     } catch (_) { /* */ }
   }
@@ -284,6 +305,15 @@ function updateLorebookEmpty() {
   const hasClosed = closedCount > 0;
   const empty = !books.length && !hasEntries && !captured;
   $('noLorebook').classList.toggle('hidden', !empty);
+
+  // "advanced" (JS) lorebooks: explain that the content must be built via the LLM,
+  // and drop the heuristic "extracted content" preview + "download txt" path —
+  // there's nothing meaningful to show or download before the LLM build.
+  const adv = state.hasAdvanced === true;
+  $('advancedNotice').classList.toggle('hidden', !adv);
+  $('lorebookEntries').classList.toggle('hidden', adv);
+  $('dlExtractedRow').classList.toggle('hidden', adv);
+  $('extractedDivider').classList.toggle('hidden', adv);
 
   if (!captured) {
     // Inspection: offer on-demand extraction when there's a closed lorebook.
@@ -452,22 +482,26 @@ async function buildJsBook(i, btn) {
   }
 }
 
-function renderLorebookEntries(entries) {
+// Show the isolated lorebook text as a single "Extracted content" block. The
+// naive blank-line split into per-entry blocks was misleading: a single logical
+// entry usually spans several paragraphs, so it over-segmented. Without an LLM we
+// can't recover real entry boundaries or keys, so we present the raw text as-is.
+function renderExtractedContent(text) {
   const container = $('lorebookEntries');
   container.innerHTML = '';
-  for (let i = 0; i < entries.length; i++) {
-    const details = document.createElement('details');
-    details.className = 'msg-block msg-lorebook';
-    const summary = document.createElement('summary');
-    summary.className = 'msg-role';
-    summary.textContent = `${t('provEntry')} ${i + 1}`;
-    const body = document.createElement('pre');
-    body.className = 'msg-body';
-    body.textContent = entries[i];
-    details.appendChild(summary);
-    details.appendChild(body);
-    container.appendChild(details);
-  }
+  if (!text || !text.trim()) return;
+  const details = document.createElement('details');
+  details.className = 'msg-block msg-lorebook';
+  details.open = true;
+  const summary = document.createElement('summary');
+  summary.className = 'msg-role';
+  summary.textContent = t('extractedContent');
+  const body = document.createElement('pre');
+  body.className = 'msg-body';
+  body.textContent = text.trim();
+  details.appendChild(summary);
+  details.appendChild(body);
+  container.appendChild(details);
 }
 
 // Shared request body for /api/extract and /api/extract-preview — the build-with-LLM
@@ -482,6 +516,9 @@ function buildExtractBody() {
     useGreetings: $('useGreetings').checked,
     useLorebookDescs: $('useLorebookDescs').checked,
     extraContext: $('useExtra').checked ? $('extraContext').value : '',
+    // "advanced" lorebooks: lorebookText is the full system prompt; let the LLM
+    // isolate the lore from it (instead of building from pre-separated text).
+    fromRaw: state.hasAdvanced === true,
   };
 }
 
@@ -574,31 +611,18 @@ function lorebookFileName() {
   return 'Lorebook';
 }
 
-function downloadRaw() {
+// Download the isolated lorebook text verbatim as a plain .txt file. This is the
+// no-LLM path: keys and real entry boundaries can't be recovered without a model,
+// so we just hand back the extracted content for manual use.
+function downloadExtracted() {
   const text = $('lorebookText').value.trim();
   if (!text) return;
-  const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
-  const entries = {};
-  blocks.forEach((content, i) => {
-    entries[String(i)] = {
-      uid: i, key: [], keysecondary: [], comment: `Entry ${i + 1}`,
-      content, constant: false, selective: false, order: 100, position: 0,
-      disable: false, addMemo: true, displayIndex: i,
-      probability: 100, useProbability: true, depth: 4,
-      group: '', groupOverride: false, groupWeight: 100,
-      sticky: 0, cooldown: 0, delay: 0, role: null, vectorized: false,
-      excludeRecursion: false, preventRecursion: false, delayUntilRecursion: false,
-      scanDepth: null, caseSensitive: null, matchWholeWords: null,
-      useGroupScoring: null, automationId: '', selectiveLogic: 0,
-    };
-  });
-  const worldInfo = { entries };
-  const blob = new Blob([JSON.stringify(worldInfo, null, 2)], { type: 'application/json' });
-  triggerDownload(blob, `${lorebookFileName()}.json`);
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  triggerDownload(blob, `${lorebookFileName()}.txt`);
 }
 
   // ---- character card ----
-function fillCharacter(ch) {
+function fillCharacter(ch, autoTab = true) {
   state.character = ch || null;
   const set = (id, v) => { $(id).value = v || ''; };
   set('charName', ch && ch.name);
@@ -619,7 +643,7 @@ function fillCharacter(ch) {
   }
   const cardPrivate = !state.cardPublic && !state.captured;
   $('cardFormBlock').classList.toggle('hidden', cardPrivate);
-  if (ch && (ch.name || ch.description)) switchTab('tabCard');
+  if (autoTab && ch && (ch.name || ch.description)) switchTab('tabCard');
 }
 
 // Show where the card came from: pulled straight from JanitorAI (open
@@ -912,6 +936,9 @@ async function runLoreExtract() {
     $('useExtra').checked = opt.extra;
     $('extraContext').value = opt.extra ? opt.extraText : '';
     $('extraContext').classList.toggle('hidden', !opt.extra);
+    // "advanced" lorebooks can't be separated heuristically, so collect the keys
+    // through the LLM right away (it isolates the lore from the full prompt).
+    if (state.hasAdvanced) await runBuild();
   } catch (e) {
     setStatus($('loreExtractStatus'), 'x', e.message);
   } finally {
@@ -1002,7 +1029,7 @@ function connectEvents() {
 // ---- wire up ----
 $('runBtn').addEventListener('click', runFromUrl);
 $('charUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') runFromUrl(); });
-$('dlRawBtn').addEventListener('click', downloadRaw);
+$('dlExtractedBtn').addEventListener('click', downloadExtracted);
 $('buildBtn').addEventListener('click', runBuild);
 $('previewBtn').addEventListener('click', previewPrompt);
 $('cardExtractBtn').addEventListener('click', runCardExtract);

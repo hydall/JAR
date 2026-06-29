@@ -54,6 +54,30 @@ Your job:
    { "entries": [ { "comment": "...", "key": ["..."], "keysecondary": [], "content": "...", "order": 100 }, ... ] }
 No markdown, no prose, no code fences — JSON only.`;
 
+// System prompt for the RAW-prompt path: used when the character has an
+// "advanced" / Nine API lorebook, whose injected entries the heuristic separator
+// cannot reliably isolate. Instead of pre-separating, the model is handed the
+// FULL assembled generateAlpha system prompt plus the clean (dot-probed) card and
+// scenario as context, and isolates + keys the lore itself.
+const SYSTEM_PROMPT_RAW = `You reconstruct a SillyTavern World Info (lorebook) from a roleplay platform's full assembled system prompt.
+
+You are given the COMPLETE system prompt that JanitorAI assembled and sent to its model. It interleaves, in no guaranteed order or markup: a jailbreak / system instruction prefix, the character card (the character's persona), the user's persona, the scenario, example dialogue, AND the lorebook entries that were injected because their trigger keywords matched. The lorebook entries are the ONLY thing you want.
+
+You are SEPARATELY given, as CONTEXT, the clean character card and (when available) the scenario and other material. Use that context to recognize and EXCLUDE the card / persona / scenario / examples / system instructions precisely — whatever genuine lore remains is what you output.
+
+Your job:
+1. Isolate ONLY the injected lorebook entries. Exclude the character card and user persona, the scenario, example dialogue, and any jailbreak / system / formatting instructions. When in doubt, keep self-contained world/lore/NPC/rules/setting facts and drop second-person roleplay instructions and anything that merely restates the provided card or scenario.
+2. Split the isolated lore into discrete World Info entries — one coherent topic each (a person, place, faction, item, rule, lore fact). Do NOT merge unrelated topics; do NOT split a single topic across entries.
+3. For each entry, write:
+   - "content": the entry body, cleaned up but faithful to the source (keep the facts).
+   - "key": an array of primary trigger keywords/phrases a chat would mention to surface this entry (names, aliases, places, distinctive nouns). Infer them from the content and from the character card context.
+   - "keysecondary": optional array of secondary keywords (leave [] if not needed).
+   - "comment": a short title for the entry (the topic name).
+   - "order": optional integer insertion order (lower = inserted earlier); default 100.
+4. Output ONLY a JSON object of the form:
+   { "entries": [ { "comment": "...", "key": ["..."], "keysecondary": [], "content": "...", "order": 100 }, ... ] }
+No markdown, no prose, no code fences — JSON only.`;
+
 function stripFences(text) {
   let t = text.trim();
   const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
@@ -135,11 +159,21 @@ function buildExtractionMessages(lorebookText, opts = {}) {
       + 'this as entries:\n\n' + extra,
     );
   }
-  userParts.push(opts.fromJs
-    ? `JavaScript lorebook source to convert into entries:\n\n${lorebookText}`
-    : `Raw lorebook text to convert into entries:\n\n${lorebookText}`);
+  let source;
+  let systemPrompt;
+  if (opts.fromRaw) {
+    source = `Full assembled system prompt — isolate the lorebook entries from it:\n\n${lorebookText}`;
+    systemPrompt = SYSTEM_PROMPT_RAW;
+  } else if (opts.fromJs) {
+    source = `JavaScript lorebook source to convert into entries:\n\n${lorebookText}`;
+    systemPrompt = SYSTEM_PROMPT_JS;
+  } else {
+    source = `Raw lorebook text to convert into entries:\n\n${lorebookText}`;
+    systemPrompt = SYSTEM_PROMPT;
+  }
+  userParts.push(source);
   return [
-    { role: 'system', content: opts.fromJs ? SYSTEM_PROMPT_JS : SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: userParts.join('\n\n---\n\n') },
   ];
 }
