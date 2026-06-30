@@ -601,6 +601,14 @@ app.post('/api/capture', async (req, res) => {
         }
         await page.goto(`https://janitorai.com/chats/${chatId}`, { waitUntil: 'domcontentloaded' });
 
+        // JanitorAI caches the selected proxy preset in its client store, so the
+        // dummy preset switched in by enterExtractionMode() above may not take
+        // effect on the first chat load — the captured `/generateAlpha` would then
+        // run against the previous (e.g. JLLM) preset and lose its wrappers. Reload
+        // the chat page once to force the new preset to take effect before the
+        // auto-trigger fires generateAlpha.
+        await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+
         const firstMessage = meta && meta.first_message ? String(meta.first_message) : '';
         // Attach the upcoming generateAlpha capture to THIS inspected record.
         pendingCaptureId = rec.id;

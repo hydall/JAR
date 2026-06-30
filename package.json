@@ -1,6 +1,6 @@
 {
   "name": "JAR",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Scrap content hosted on JanitorAI",
   "license": "AGPL-3.0",
